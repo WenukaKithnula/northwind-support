@@ -1,3 +1,4 @@
+import { sessionStore } from '../auth/sessionStore';
 import type { ProblemDetails } from '../types/api';
 
 /**
@@ -28,17 +29,29 @@ export class ApiError extends Error {
 /**
  * The single place that talks to the API. Returns parsed JSON, or throws an
  * {@link ApiError} that callers can show to the user.
+ *
+ * It also holds the two rules of being signed in, so no screen has to: the token goes in the
+ * Authorization header of every call, and a 401 to a call that carried one means the session is no
+ * longer good, so it is ended and the route guard sends the user back to the login page.
  */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = sessionStore.get()?.token;
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
 
   if (!response.ok) {
+    // A 401 with no token is just a refused sign-in, which the login page shows itself.
+    if (response.status === 401 && token) {
+      sessionStore.clear();
+    }
+
     const problem = await readProblem(response);
 
     throw new ApiError(

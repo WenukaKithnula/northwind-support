@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ApiError, toErrorMessage } from '../../../api/client';
 import { ticketsApi } from '../../../api/tickets';
+import { useSession } from '../../../auth/useSession';
 import { Field } from '../../../components/Field';
 import type { EscalationResult, TicketDetail } from '../../../types/api';
 import {
@@ -18,14 +19,14 @@ interface EscalationPanelProps {
 }
 
 /**
- * Escalates a ticket one priority level. The form checks the same limits as the server, so an
+ * Escalates a ticket one priority level. The form checks the same limit as the server, so an
  * invalid reason never reaches the API; when the ticket cannot be escalated at all, the form is
  * replaced by the reason. What the screen knows can be out of date, so a refusal from the server
- * is shown too.
+ * is shown too. The escalation is recorded against whoever is signed in; the form does not ask.
  */
 export function EscalationPanel({ ticket, onEscalated }: EscalationPanelProps) {
+  const session = useSession();
   const [reason, setReason] = useState('');
-  const [escalatedBy, setEscalatedBy] = useState('');
   const [errors, setErrors] = useState<EscalationErrors>({});
   const [submitError, setSubmitError] = useState<string>();
   const [isSaving, setIsSaving] = useState(false);
@@ -44,7 +45,7 @@ export function EscalationPanel({ ticket, onEscalated }: EscalationPanelProps) {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const problems = validateEscalation({ reason, escalatedBy });
+    const problems = validateEscalation({ reason });
     setErrors(problems);
     setSubmitError(undefined);
 
@@ -55,16 +56,13 @@ export function EscalationPanel({ ticket, onEscalated }: EscalationPanelProps) {
     setIsSaving(true);
 
     try {
-      const result = await ticketsApi.escalate(ticket.id, {
-        reason: reason.trim(),
-        escalatedBy: escalatedBy.trim(),
-      });
+      const result = await ticketsApi.escalate(ticket.id, { reason: reason.trim() });
 
       setReason('');
       onEscalated(result);
     } catch (caught) {
-      if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
-        setErrors(fromApiErrors(caught.fieldErrors));
+      if (caught instanceof ApiError && caught.fieldErrors.Reason) {
+        setErrors({ reason: caught.fieldErrors.Reason[0] });
       }
 
       setSubmitError(toErrorMessage(caught, 'Could not escalate the ticket.'));
@@ -78,6 +76,7 @@ export function EscalationPanel({ ticket, onEscalated }: EscalationPanelProps) {
       <h2>Escalate</h2>
       <p className="field__hint">
         Raises the priority one level, restarts the due date and records who escalated it and why.
+        {session && <> It will be recorded as {session.agent.fullName}.</>}
       </p>
 
       <Field
@@ -97,18 +96,6 @@ export function EscalationPanel({ ticket, onEscalated }: EscalationPanelProps) {
         )}
       </Field>
 
-      <Field id="escalation-by" label="Escalated by" error={errors.escalatedBy}>
-        {(fieldProps) => (
-          <input
-            {...fieldProps}
-            type="text"
-            value={escalatedBy}
-            disabled={isSaving}
-            onChange={(event) => setEscalatedBy(event.target.value)}
-          />
-        )}
-      </Field>
-
       {submitError && (
         <p className="field__error" role="alert">
           {submitError}
@@ -122,19 +109,4 @@ export function EscalationPanel({ ticket, onEscalated }: EscalationPanelProps) {
       </div>
     </form>
   );
-}
-
-/** Picks out the messages the API sent for the two fields this form has. */
-function fromApiErrors(fieldErrors: Record<string, string[]>): EscalationErrors {
-  const errors: EscalationErrors = {};
-
-  for (const [field, messages] of Object.entries(fieldErrors)) {
-    const key = field.charAt(0).toLowerCase() + field.slice(1);
-
-    if (key === 'reason' || key === 'escalatedBy') {
-      errors[key] = messages[0];
-    }
-  }
-
-  return errors;
 }

@@ -42,17 +42,14 @@ describe('ticketsApi', () => {
     expect(new URL(lastRequest().url, 'http://x').searchParams.has('slaStatus')).toBe(false);
   });
 
-  it('escalates by posting the reason and who to the ticket', async () => {
-    await ticketsApi.escalate(7, { reason: 'Customer called twice.', escalatedBy: 'alex.lead' });
+  it('escalates by posting only the reason, because who escalated comes from the token', async () => {
+    await ticketsApi.escalate(7, { reason: 'Customer called twice.' });
 
     const { url, init } = lastRequest();
 
     expect(url).toBe('/api/tickets/7/escalate');
     expect(init?.method).toBe('POST');
-    expect(JSON.parse(String(init?.body))).toEqual({
-      reason: 'Customer called twice.',
-      escalatedBy: 'alex.lead',
-    });
+    expect(JSON.parse(String(init?.body))).toEqual({ reason: 'Customer called twice.' });
   });
 
   it('reads a ticket history from the escalations endpoint', async () => {

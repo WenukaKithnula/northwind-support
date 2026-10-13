@@ -1,33 +1,26 @@
 import type { TicketDetail } from '../../types/api';
 
-/** The limits the API enforces on an escalation. Keep them in step with TicketEscalation.cs. */
+/** The limits the API enforces on an escalation's reason. Keep them in step with TicketEscalation.cs. */
 export const REASON_MIN_LENGTH = 5;
 export const REASON_MAX_LENGTH = 500;
-export const ESCALATED_BY_MAX_LENGTH = 100;
 
 export interface EscalationInput {
   reason: string;
-  escalatedBy: string;
 }
 
 export type EscalationErrors = Partial<Record<keyof EscalationInput, string>>;
 
 /**
  * Checks an escalation against the same rules as the server, so an invalid one never reaches the
- * API. The reason is counted after trimming, because that is how the server counts it.
+ * API. The reason is counted after trimming, because that is how the server counts it. Who is
+ * escalating is not asked for: the API takes that from the signed-in agent.
  */
-export function validateEscalation({ reason, escalatedBy }: EscalationInput): EscalationErrors {
+export function validateEscalation({ reason }: EscalationInput): EscalationErrors {
   const errors: EscalationErrors = {};
   const length = reason.trim().length;
 
   if (length < REASON_MIN_LENGTH || length > REASON_MAX_LENGTH) {
     errors.reason = `The reason must be ${REASON_MIN_LENGTH} to ${REASON_MAX_LENGTH} characters.`;
-  }
-
-  if (escalatedBy.trim().length === 0) {
-    errors.escalatedBy = 'Say who is escalating this ticket.';
-  } else if (escalatedBy.trim().length > ESCALATED_BY_MAX_LENGTH) {
-    errors.escalatedBy = `Keep the name to ${ESCALATED_BY_MAX_LENGTH} characters or fewer.`;
   }
 
   return errors;

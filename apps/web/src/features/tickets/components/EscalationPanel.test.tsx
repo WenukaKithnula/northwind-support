@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../api/client';
 import { ticketsApi } from '../../../api/tickets';
+import { sessionStore } from '../../../auth/sessionStore';
 import { escalationEntry, ticketDetail } from '../../../test/fixtures';
 import type { EscalationResult } from '../../../types/api';
 import { EscalationPanel } from './EscalationPanel';
@@ -25,16 +26,37 @@ function setUp(ticket = ticketDetail()) {
   return { onEscalated, user: userEvent.setup() };
 }
 
-async function fillIn(user: ReturnType<typeof userEvent.setup>, reason: string, who = 'alex.lead') {
+async function fillIn(user: ReturnType<typeof userEvent.setup>, reason: string) {
   await user.clear(screen.getByLabelText('Reason'));
   await user.type(screen.getByLabelText('Reason'), reason);
-  await user.clear(screen.getByLabelText('Escalated by'));
-  await user.type(screen.getByLabelText('Escalated by'), who);
 }
 
 describe('EscalationPanel', () => {
+  beforeEach(() => {
+    sessionStore.set({
+      token: 'the-token',
+      expiresAtUtc: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      agent: { id: 1, fullName: 'Alex Turner', email: 'alex.turner@northwind-support.example' },
+    });
+  });
+
   afterEach(() => {
+    sessionStore.clear();
     vi.clearAllMocks();
+  });
+
+  describe('who escalates', () => {
+    it('does not ask, because the escalation is recorded against whoever is signed in', () => {
+      setUp();
+
+      expect(screen.queryByLabelText('Escalated by')).not.toBeInTheDocument();
+    });
+
+    it('says who it will be recorded as', () => {
+      setUp();
+
+      expect(screen.getByText(/It will be recorded as Alex Turner/)).toBeInTheDocument();
+    });
   });
 
   describe('validation', () => {
@@ -53,23 +75,12 @@ describe('EscalationPanel', () => {
     it('blocks a reason that is too long without calling the API', async () => {
       const { user } = setUp();
 
-      await user.type(screen.getByLabelText('Escalated by'), 'alex.lead');
       // Pasting is quicker than typing 501 characters, and is how a long reason would arrive.
       await user.click(screen.getByLabelText('Reason'));
       await user.paste('a'.repeat(501));
       await user.click(screen.getByRole('button', { name: 'Escalate' }));
 
       expect(screen.getByText('The reason must be 5 to 500 characters.')).toBeInTheDocument();
-      expect(escalate).not.toHaveBeenCalled();
-    });
-
-    it('blocks an escalation that does not say who is escalating', async () => {
-      const { user } = setUp();
-
-      await user.type(screen.getByLabelText('Reason'), goodReason);
-      await user.click(screen.getByRole('button', { name: 'Escalate' }));
-
-      expect(screen.getByText('Say who is escalating this ticket.')).toBeInTheDocument();
       expect(escalate).not.toHaveBeenCalled();
     });
 
@@ -84,7 +95,7 @@ describe('EscalationPanel', () => {
   });
 
   describe('escalating', () => {
-    it('sends the trimmed reason and name, then hands the result to the page', async () => {
+    it('sends the trimmed reason, and only that, then hands the result to the page', async () => {
       const result: EscalationResult = {
         ticket: ticketDetail({ priority: 'High' }),
         escalation: escalationEntry(),
@@ -92,11 +103,11 @@ describe('EscalationPanel', () => {
       escalate.mockResolvedValue(result);
       const { user, onEscalated } = setUp(ticketDetail({ id: 12 }));
 
-      await fillIn(user, `  ${goodReason}  `, '  alex.lead  ');
+      await fillIn(user, `  ${goodReason}  `);
       await user.click(screen.getByRole('button', { name: 'Escalate' }));
 
       await waitFor(() => expect(onEscalated).toHaveBeenCalledWith(result));
-      expect(escalate).toHaveBeenCalledWith(12, { reason: goodReason, escalatedBy: 'alex.lead' });
+      expect(escalate).toHaveBeenCalledWith(12, { reason: goodReason });
     });
 
     it('shows a pending state while the request is in flight, and does not send twice', async () => {

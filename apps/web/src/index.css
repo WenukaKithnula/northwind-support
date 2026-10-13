@@ -443,3 +443,28 @@ textarea[aria-invalid='true'] {
   white-space: nowrap;
   border: 0;
 }
+
+/* Signed-in agent, in the header. */
+.app__user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.app__user-name {
+  font-weight: 600;
+}
+
+/* The login page: one card, centred, outside the application shell. */
+.login {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 64px 16px;
+}
+
+.login__form {
+  width: 100%;
+  max-width: 400px;
+}

@@ -113,10 +113,23 @@ export interface EscalationResult {
   escalation: EscalationEntry;
 }
 
-/** Body of an escalation. */
+/** Body of an escalation. Who escalated is not sent: the API takes it from the token. */
 export interface EscalatePayload {
   reason: string;
-  escalatedBy: string;
+}
+
+/** The agent who is signed in: just enough to greet them. */
+export interface SignedInAgent {
+  id: number;
+  fullName: string;
+  email: string;
+}
+
+/** What a successful sign-in returns, and what the browser keeps for the length of the session. */
+export interface LoginResponse {
+  token: string;
+  expiresAtUtc: string;
+  agent: SignedInAgent;
 }
 
 /** Everything the ticket list screen can narrow the results by. */
