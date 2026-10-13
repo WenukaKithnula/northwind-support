@@ -1,0 +1,28 @@
+# What the API image's build does not need. The build context is the whole repository, so
+# without this Docker would send node_modules and .git to the daemon on every build.
+**/bin/
+**/obj/
+**/node_modules/
+.git/
+.github/
+.vscode/
+.claude/
+
+# Local secrets and settings. The image must hold no configuration: it all arrives as
+# environment variables at run time, so the Development file (SQL password, dev signing key)
+# is kept out as well.
+.env
+.env.*
+!.env.example
+**/appsettings.Development.json
+
+# The web app is not part of this image.
+apps/web/
+
+# Not needed to build the API.
+apps/api/tests/
+docs/
+spec/
+db/
+*.md
+*.pdf

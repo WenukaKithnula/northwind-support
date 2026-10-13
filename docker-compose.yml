@@ -1,5 +1,5 @@
-# SQL Server for local development only. The password below is a throwaway local
-# placeholder - never commit a real credential.
+# SQL Server and the API for local development only. The passwords and the signing key below are
+# throwaway local placeholders - never commit a real credential.
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -22,6 +22,25 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      # Production on purpose: no Swagger, no development key. It is not baked into the image.
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT_API:-Production}"
+      # The service name, not localhost: inside the container localhost is the API itself.
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=SupportDesk;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Local_Dev_Password1};TrustServerCertificate=True;Encrypt=False"
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:-local-compose-signing-key-not-a-secret-change-me-32b}"
+      # Applies migrations and seeds the demo data on an empty volume. A real deployment would
+      # run migrations as its own step instead (see the README).
+      Database__MigrateAndSeed: "true"
+    ports:
+      - "127.0.0.1:5080:8080"
 
 volumes:
   supportdesk-sql:
