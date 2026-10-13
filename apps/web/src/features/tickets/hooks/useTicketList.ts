@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { ApiError } from '../../../api/client';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ticketsApi } from '../../../api/tickets';
-import type { PagedResult, TicketFilters, TicketListItem } from '../../../types/api';
+import { useAsyncData } from '../../../hooks/useAsyncData';
+import type { TicketFilters } from '../../../types/api';
 
-const DEBOUNCE_MS = 300;
+/** How long typing has to pause before the search text is sent to the API. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 export const emptyFilters: TicketFilters = {
   search: '',
@@ -19,40 +20,62 @@ export const emptyFilters: TicketFilters = {
   sortDirection: 'desc',
 };
 
-interface State {
-  isLoading: boolean;
-  data?: PagedResult<TicketListItem>;
-  error?: string;
-}
-
-/** Owns the ticket list's filters and the data they produce. */
+/**
+ * Owns the ticket list's filters and the data they produce.
+ *
+ * The list is always loaded for `applied`, the filters in force. Changing anything in it sends
+ * a request straight away, so a filter added later needs no extra wiring here. The one thing
+ * that waits is the text being typed into the search box: it is kept apart in `searchText` and
+ * only copied into `applied` once the typing settles, so there is no request per keystroke.
+ */
 export function useTicketList() {
-  const [filters, setFilters] = useState<TicketFilters>(emptyFilters);
-  const [state, setState] = useState<State>({ isLoading: true });
+  const [applied, setApplied] = useState<TicketFilters>(emptyFilters);
+  const [searchText, setSearchText] = useState(emptyFilters.search);
+  const searchTimer = useRef<number | undefined>(undefined);
 
-  const load = async () => {
-    setState((current) => ({ ...current, isLoading: true, error: undefined }));
+  const load = useCallback(() => ticketsApi.getTickets(applied), [applied]);
+  const list = useAsyncData(load, 'Unable to load tickets.');
 
-    try {
-      const data = await ticketsApi.getTickets(filters);
-      setState({ isLoading: false, data, error: undefined });
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
-      setState((current) => ({ ...current, isLoading: false, error: message }));
+  const cancelPendingSearch = useCallback(() => window.clearTimeout(searchTimer.current), []);
+
+  // A search still waiting to be sent must not fire after the page has gone.
+  useEffect(() => cancelPendingSearch, [cancelPendingSearch]);
+
+  const updateFilters = (patch: Partial<TicketFilters>) => {
+    const { search, ...immediate } = patch;
+
+    if (search !== undefined) {
+      setSearchText(search);
+      cancelPendingSearch();
+      searchTimer.current = window.setTimeout(() => {
+        setApplied((current) =>
+          current.search === search ? current : { ...current, search, page: 1 },
+        );
+      }, SEARCH_DEBOUNCE_MS);
+    }
+
+    if (Object.keys(immediate).length > 0) {
+      // Any change to what is shown starts again from the first page, unless it is the page.
+      setApplied((current) => ({ ...current, ...immediate, page: immediate.page ?? 1 }));
     }
   };
 
-  useEffect(() => {
-    const handle = window.setTimeout(load, DEBOUNCE_MS);
+  const resetFilters = () => {
+    cancelPendingSearch();
+    setSearchText(emptyFilters.search);
+    setApplied(emptyFilters);
+  };
 
-    return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object identity changes every render
-  }, [filters.search, filters.page, filters.pageSize]);
+  // The search box shows what was typed, which can be ahead of what was last requested.
+  const filters = useMemo(() => ({ ...applied, search: searchText }), [applied, searchText]);
 
-  const updateFilters = (patch: Partial<TicketFilters>) =>
-    setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
-
-  const resetFilters = () => setFilters(emptyFilters);
-
-  return { filters, updateFilters, resetFilters, reload: load, ...state };
+  return {
+    filters,
+    updateFilters,
+    resetFilters,
+    reload: list.reload,
+    isLoading: list.isLoading,
+    data: list.data,
+    error: list.error,
+  };
 }
