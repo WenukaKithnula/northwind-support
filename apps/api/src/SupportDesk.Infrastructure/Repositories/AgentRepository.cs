@@ -17,6 +17,13 @@ public sealed class AgentRepository(SupportDbContext db) : IAgentRepository
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
     /// <summary>
+    /// Not tracked: signing in only reads the agent. The email is compared as the database compares
+    /// text, which on SQL Server ignores case.
+    /// </summary>
+    public Task<Agent?> GetByEmailAsync(string email, CancellationToken ct) =>
+        db.Set<Agent>().AsNoTracking().FirstOrDefaultAsync(a => a.Email == email, ct);
+
+    /// <summary>
     /// One query for every agent: their limit, their specializations and the number of tickets they
     /// hold that are still open. The count is a subquery per agent inside the one statement, so
     /// there is no query per agent.

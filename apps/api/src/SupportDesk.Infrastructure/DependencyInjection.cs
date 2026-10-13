@@ -31,6 +31,8 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
 
+        services.AddSingleton<IPasswordHasher, IdentityPasswordHasher>();
+
         // Built here, at startup, so bad SLA configuration fails the application straight away.
         services.AddSingleton(SlaPolicyFactory.Create(configuration));
 
