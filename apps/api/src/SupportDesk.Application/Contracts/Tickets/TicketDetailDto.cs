@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using SupportDesk.Domain.Aggregates.Tickets;
 
 namespace SupportDesk.Application.Contracts.Tickets;
@@ -35,4 +36,11 @@ public sealed class TicketDetailDto
 
     /// <summary>Derived from the dates above; never stored.</summary>
     public SlaStatus SlaStatus { get; set; }
+
+    /// <summary>
+    /// How the ticket's priority, due date and owner were decided. Only the response to creating a
+    /// ticket carries it, so it is left out of the JSON everywhere else.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TriageDto? Triage { get; set; }
 }

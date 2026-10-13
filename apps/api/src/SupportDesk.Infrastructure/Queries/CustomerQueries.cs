@@ -19,10 +19,7 @@ public sealed class CustomerQueries(SupportDbContext db, ITicketQueries tickets)
                 c.Email,
                 c.Phone,
                 c.Tier,
-                db.Set<Ticket>().Count(t =>
-                    t.CustomerId == c.Id &&
-                    t.Status != TicketStatus.Resolved &&
-                    t.Status != TicketStatus.Closed)))
+                db.Set<Ticket>().Where(t => t.CustomerId == c.Id).Count(OpenTicket.Predicate)))
             .ToListAsync(ct);
 
     public async Task<CustomerDetailDto?> GetDetailAsync(int id, CancellationToken ct)

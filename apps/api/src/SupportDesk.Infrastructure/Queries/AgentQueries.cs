@@ -21,10 +21,7 @@ public sealed class AgentQueries(SupportDbContext db) : IAgentQueries
                 a.Email,
                 a.IsActive,
                 a.MaxOpenTickets,
-                db.Set<Ticket>().Count(t =>
-                    t.AssignedAgentId == a.Id &&
-                    t.Status != TicketStatus.Resolved &&
-                    t.Status != TicketStatus.Closed),
+                db.Set<Ticket>().Where(t => t.AssignedAgentId == a.Id).Count(OpenTicket.Predicate),
                 (from specialization in a.Specializations
                  join category in db.Set<Category>() on specialization.CategoryId equals category.Id
                  select new CategorySummaryDto(category.Id, category.Name))

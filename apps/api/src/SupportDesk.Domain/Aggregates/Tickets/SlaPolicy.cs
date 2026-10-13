@@ -62,6 +62,15 @@ public sealed class SlaPolicy
     /// <summary>A ticket is at risk once this share of its window, or less, is left.</summary>
     public double AtRiskThresholdPercent { get; }
 
+    /// <summary>The share of the standard window a Premium customer gets.</summary>
+    public double PremiumCustomerMultiplier => _premiumCustomerMultiplier;
+
+    /// <summary>The shortest window a Premium customer is ever given, in hours.</summary>
+    public double MinimumWindowHours => _minimumWindowHours;
+
+    /// <summary>The standard window for a priority, before any Premium reduction.</summary>
+    public TimeSpan BaseWindowFor(TicketPriority priority) => TimeSpan.FromHours(_baseWindowHours[priority]);
+
     /// <summary>
     /// How long a ticket of this priority may stay open for a customer of this tier. A Premium
     /// customer gets the base window scaled down, but never below the minimum - and never longer

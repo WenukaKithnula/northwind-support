@@ -54,6 +54,38 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy s
         return new PagedResult<TicketListItemDto>(items, query.Page, query.PageSize, totalCount);
     }
 
+    /// <remarks>
+    /// Newest first, with the agents' names joined in the same statement (no query per row). The
+    /// index on (TicketId, EscalatedAtUtc DESC) serves exactly this read.
+    /// </remarks>
+    public async Task<IReadOnlyList<TicketEscalationDto>?> GetEscalationsAsync(int ticketId, CancellationToken ct)
+    {
+        if (!await db.Set<Ticket>().AsNoTracking().AnyAsync(t => t.Id == ticketId, ct))
+        {
+            return null;
+        }
+
+        return await (
+            from escalation in db.Set<TicketEscalation>().AsNoTracking()
+            where escalation.TicketId == ticketId
+            from fromAgent in db.Set<Agent>().Where(a => a.Id == escalation.FromAgentId).DefaultIfEmpty()
+            from toAgent in db.Set<Agent>().Where(a => a.Id == escalation.ToAgentId).DefaultIfEmpty()
+            orderby escalation.EscalatedAtUtc descending, escalation.Id descending
+            select new TicketEscalationDto(
+                escalation.Id,
+                escalation.TicketId,
+                escalation.FromPriority,
+                escalation.ToPriority,
+                fromAgent == null ? null : new AgentSummaryDto(fromAgent.Id, fromAgent.FullName),
+                toAgent == null ? null : new AgentSummaryDto(toAgent.Id, toAgent.FullName),
+                escalation.FromDueAtUtc,
+                escalation.ToDueAtUtc,
+                escalation.Reason,
+                escalation.EscalatedBy,
+                escalation.EscalatedAtUtc))
+            .ToListAsync(ct);
+    }
+
     public Task<TicketDetailDto?> GetDetailAsync(int id, CancellationToken ct)
     {
         var now = clock.UtcNow;
