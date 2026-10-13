@@ -19,7 +19,7 @@ namespace SupportDesk.UnitTests.Presentation;
 /// Starts the real API in memory, with SQLite behind it and a signing key of the test's own, so a
 /// test can call it over HTTP exactly as the web app does. Nothing here talks to SQL Server.
 /// </summary>
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public class ApiFactory : WebApplicationFactory<Program>
 {
     public const string SigningKey = "integration-test-signing-key-at-least-32-bytes";
     public const string Password = "a-test-only-password";
@@ -46,9 +46,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<IDbContextOptionsConfiguration<SupportDbContext>>();
 
             _connection.Open();
-            services.AddDbContext<SupportDbContext>(options => options.UseSqlite(_connection));
+            services.AddDbContext<SupportDbContext>(ConfigureDatabase);
         });
     }
+
+    /// <summary>The database the API is given. A test of an outage overrides it with one that is not there.</summary>
+    protected virtual void ConfigureDatabase(DbContextOptionsBuilder options) => options.UseSqlite(_connection);
 
     private readonly object _seedLock = new();
     private bool _seeded;
