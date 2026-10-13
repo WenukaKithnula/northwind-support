@@ -1,3 +1,4 @@
+using SupportDesk.Domain.Aggregates.Customers;
 using SupportDesk.Domain.Common;
 using SupportDesk.Domain.Exceptions;
 
@@ -50,7 +51,7 @@ public sealed class Ticket : AggregateRoot
 
     /// <summary>
     /// Raises a new ticket for a customer. It starts as <see cref="TicketStatus.New"/>, with no
-    /// owner and no due date.
+    /// owner. The due date is whatever the SLA policy worked out, or null when none applies.
     /// </summary>
     public static Ticket Raise(
         string reference,
@@ -59,7 +60,8 @@ public sealed class Ticket : AggregateRoot
         int customerId,
         int categoryId,
         TicketPriority priority,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        DateTime? dueAtUtc = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reference);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -75,7 +77,8 @@ public sealed class Ticket : AggregateRoot
             Priority = priority,
             Status = TicketStatus.New,
             CreatedAtUtc = nowUtc,
-            UpdatedAtUtc = nowUtc
+            UpdatedAtUtc = nowUtc,
+            DueAtUtc = dueAtUtc
         };
     }
 
@@ -110,5 +113,66 @@ public sealed class Ticket : AggregateRoot
     {
         AssignedAgentId = agentId;
         UpdatedAtUtc = nowUtc;
+    }
+
+    /// <summary>
+    /// Raises the priority one level, restarts the due date from this moment under the new
+    /// priority, hands the ticket to <paramref name="newAgentId"/> and returns the history row that
+    /// records the change. Who the new owner should be is for the caller to decide, because it can
+    /// see the agents; the ticket applies what it is given.
+    /// </summary>
+    /// <param name="reason">Why, already checked against the length limits by the caller.</param>
+    /// <param name="escalatedBy">Who is escalating it.</param>
+    /// <param name="policy">The SLA rules, so the new due date comes from the same place as every other.</param>
+    /// <param name="customerTier">The ticket's customer's tier, which the window depends on.</param>
+    /// <param name="newAgentId">The owner afterwards: the same agent, another, or null for nobody.</param>
+    /// <exception cref="BusinessRuleViolationException">
+    /// The ticket is Resolved or Closed, or is already Critical.
+    /// </exception>
+    public TicketEscalation Escalate(
+        string reason,
+        string escalatedBy,
+        SlaPolicy policy,
+        CustomerTier customerTier,
+        int? newAgentId,
+        DateTime nowUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentException.ThrowIfNullOrWhiteSpace(escalatedBy);
+        ArgumentNullException.ThrowIfNull(policy);
+
+        if (!IsOpen)
+        {
+            throw new BusinessRuleViolationException(
+                $"Ticket {Reference} is {Status} and cannot be escalated.");
+        }
+
+        if (Priority == TicketPriority.Critical)
+        {
+            throw new BusinessRuleViolationException(
+                $"Ticket {Reference} is already Critical and cannot be escalated further.");
+        }
+
+        var raisedPriority = (TicketPriority)((int)Priority + 1);
+        var newDueAtUtc = policy.DueAt(nowUtc, raisedPriority, customerTier);
+
+        var escalation = new TicketEscalation(
+            Id,
+            Priority,
+            raisedPriority,
+            AssignedAgentId,
+            newAgentId,
+            DueAtUtc,
+            newDueAtUtc,
+            reason.Trim(),
+            escalatedBy.Trim(),
+            nowUtc);
+
+        Priority = raisedPriority;
+        DueAtUtc = newDueAtUtc;
+        AssignedAgentId = newAgentId;
+        UpdatedAtUtc = nowUtc;
+
+        return escalation;
     }
 }

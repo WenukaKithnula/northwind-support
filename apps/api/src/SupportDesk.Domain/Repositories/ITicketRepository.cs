@@ -15,4 +15,10 @@ public interface ITicketRepository
     Task<string> NextReferenceAsync(CancellationToken ct);
 
     Task AddAsync(Ticket ticket, CancellationToken ct);
+
+    /// <summary>
+    /// Adds the history row for an escalation. It is saved by the unit of work together with the
+    /// change to the ticket, so the two cannot get out of step.
+    /// </summary>
+    Task AddEscalationAsync(TicketEscalation escalation, CancellationToken ct);
 }

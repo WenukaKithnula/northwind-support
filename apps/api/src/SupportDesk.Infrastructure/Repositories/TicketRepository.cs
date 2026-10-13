@@ -29,4 +29,7 @@ public sealed class TicketRepository(SupportDbContext db) : ITicketRepository
 
     public async Task AddAsync(Ticket ticket, CancellationToken ct) =>
         await db.Set<Ticket>().AddAsync(ticket, ct);
+
+    public async Task AddEscalationAsync(TicketEscalation escalation, CancellationToken ct) =>
+        await db.Set<TicketEscalation>().AddAsync(escalation, ct);
 }
