@@ -41,6 +41,24 @@ Full requirements are in **[`ASSIGNMENT_CANDIDATE.md`](ASSIGNMENT_CANDIDATE.md)*
 
 ---
 
+## The defect (DEFECT-117, Task 1)
+
+**Root cause:** the effect that loads tickets in `useTicketList` depended only on `search`, `page` and
+`pageSize`, so changing any other filter updated the state without sending a request, and the next
+search request then carried the earlier filters. An `eslint-disable` comment hid the missing dependency.
+
+**Fix:** the list loads from one set of applied filters, so every filter change sends a request at once
+and a filter added later needs no extra wiring. Only the search text is debounced (300 ms, the value the
+code already used).
+
+**Verify:** change Status and a `GET /api/tickets?status=...` shows up in the Network tab straight away.
+The regression tests in `useTicketList.test.ts` assert the request that is sent, and 9 of them fail on
+the original hook (`npm test`).
+
+**More:** [docs/defect-117.md](docs/defect-117.md).
+
+---
+
 ## Quick start
 
 **Prerequisites:** .NET SDK 10 (`global.json`), Node.js 22 (`.nvmrc`; 20.19+ works), Docker.
