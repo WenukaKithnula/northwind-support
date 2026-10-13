@@ -30,6 +30,7 @@ internal sealed class TicketCommandTestContext
         // keeps the priority it asked for.
         UseCustomer(SeededData.Fabrikam);
         UseCategory(SeededData.Technical);
+        SignedInAs("Alex Turner");
 
         Agents.Setup(a => a.GetCandidatesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(SeededData.Agents);
@@ -73,8 +74,8 @@ internal sealed class TicketCommandTestContext
             NullLogger<RaiseTicketCommandHandler>.Instance);
 
         EscalateTicket = new EscalateTicketCommandHandler(
-            Tickets.Object, Customers.Object, Categories.Object, triage, SlaPolicy, UnitOfWork.Object, Clock,
-            getTicket, getEscalations, NullLogger<EscalateTicketCommandHandler>.Instance);
+            Tickets.Object, Customers.Object, Categories.Object, triage, SlaPolicy, CurrentUser.Object, UnitOfWork.Object,
+            Clock, getTicket, getEscalations, NullLogger<EscalateTicketCommandHandler>.Instance);
 
         ChangeTicketStatus = new ChangeTicketStatusCommandHandler(Tickets.Object, UnitOfWork.Object, Clock, getTicket);
 
@@ -95,6 +96,8 @@ internal sealed class TicketCommandTestContext
 
     public Mock<ITicketQueries> TicketQueries { get; } = new();
 
+    public Mock<ICurrentUser> CurrentUser { get; } = new();
+
     public FixedClock Clock { get; } = new();
 
     public SlaPolicy SlaPolicy { get; } = TestSlaPolicy.Default;
@@ -112,6 +115,20 @@ internal sealed class TicketCommandTestContext
 
     /// <summary>The history row handed to the repository by the last escalate call.</summary>
     public TicketEscalation? AddedEscalation { get; private set; }
+
+    /// <summary>Makes this agent the one making the request.</summary>
+    public void SignedInAs(string fullName, int agentId = 1)
+    {
+        CurrentUser.SetupGet(u => u.AgentId).Returns(agentId);
+        CurrentUser.SetupGet(u => u.FullName).Returns(fullName);
+    }
+
+    /// <summary>Makes the request come from nobody the API could identify.</summary>
+    public void NobodySignedIn()
+    {
+        CurrentUser.SetupGet(u => u.AgentId).Returns((int?)null);
+        CurrentUser.SetupGet(u => u.FullName).Returns((string?)null);
+    }
 
     /// <summary>Makes the customer lookup return this customer, whatever id is asked for.</summary>
     public void UseCustomer(Customer customer) =>

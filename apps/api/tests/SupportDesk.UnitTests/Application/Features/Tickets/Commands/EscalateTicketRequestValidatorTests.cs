@@ -7,8 +7,8 @@ public class EscalateTicketRequestValidatorTests
 {
     private static readonly EscalateTicketRequestValidator Validator = new();
 
-    private static bool IsValid(string? reason, string? escalatedBy = "alex.lead") =>
-        Validator.Validate(new EscalateTicketRequest(reason!, escalatedBy!)).IsValid;
+    private static bool IsValid(string? reason) =>
+        Validator.Validate(new EscalateTicketRequest(reason!)).IsValid;
 
     [Fact]
     public void AValidRequest_Passes() =>
@@ -40,21 +40,10 @@ public class EscalateTicketRequestValidatorTests
         Assert.True(IsValid("  abcde  "));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void AMissingEscalatedBy_Fails(string? escalatedBy) =>
-        Assert.False(IsValid("A good enough reason.", escalatedBy));
-
-    [Fact]
-    public void AnEscalatedByLongerThanTheLimit_Fails() =>
-        Assert.False(IsValid("A good enough reason.", new string('a', 101)));
-
     [Fact]
     public void TheFailureIsReportedAgainstTheReasonField()
     {
-        var result = Validator.Validate(new EscalateTicketRequest("abc", "alex.lead"));
+        var result = Validator.Validate(new EscalateTicketRequest("abc"));
 
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(EscalateTicketRequest.Reason));
     }

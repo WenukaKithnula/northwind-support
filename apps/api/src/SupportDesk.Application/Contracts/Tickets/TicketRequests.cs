@@ -18,5 +18,8 @@ public sealed record AssignTicketRequest(int? AgentId);
 
 /// <summary>Body of POST /api/tickets/{id}/escalate.</summary>
 /// <param name="Reason">Why the ticket is being escalated, 5 to 500 characters.</param>
-/// <param name="EscalatedBy">Who is escalating it. Replaced by the signed-in agent once there is a login.</param>
-public sealed record EscalateTicketRequest(string Reason, string EscalatedBy);
+/// <remarks>
+/// Who escalated is not in the body: it is the signed-in agent, taken from the token. A body that
+/// still carries an "escalatedBy" is read without it.
+/// </remarks>
+public sealed record EscalateTicketRequest(string Reason);

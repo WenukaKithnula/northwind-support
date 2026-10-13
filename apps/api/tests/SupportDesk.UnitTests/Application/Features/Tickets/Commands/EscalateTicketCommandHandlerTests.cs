@@ -11,7 +11,7 @@ public class EscalateTicketCommandHandlerTests
     private static readonly DateTime Now = FixedClock.DefaultNow;
 
     private static EscalateTicketRequest Request(string reason = "Customer called twice and needs an answer.") =>
-        new(reason, "alex.lead");
+        new(reason);
 
     [Fact]
     public async Task HandleAsync_RaisesThePriorityOneLevelAndSavesTheHistoryWithTheTicket()
@@ -71,17 +71,42 @@ public class EscalateTicketCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_RecordsTheReasonAndWhoEscalatedItTrimmed()
+    public async Task HandleAsync_RecordsTheReasonTrimmed()
     {
         var context = new TicketCommandTestContext();
         var ticket = context.ExistingTicket(new TicketBuilder().Build());
 
         await context.EscalateTicket.HandleAsync(
-            ticket.Id, new EscalateTicketRequest("  Whole site is down.  ", "  alex.lead  "), CancellationToken.None);
+            ticket.Id, new EscalateTicketRequest("  Whole site is down.  "), CancellationToken.None);
 
         Assert.Equal("Whole site is down.", context.AddedEscalation!.Reason);
-        Assert.Equal("alex.lead", context.AddedEscalation.EscalatedBy);
         Assert.Equal(Now, context.AddedEscalation.EscalatedAtUtc);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RecordsTheSignedInAgentAsWhoEscalatedIt()
+    {
+        var context = new TicketCommandTestContext();
+        context.SignedInAs("Priya Nair");
+        var ticket = context.ExistingTicket(new TicketBuilder().Build());
+
+        await context.EscalateTicket.HandleAsync(ticket.Id, Request(), CancellationToken.None);
+
+        Assert.Equal("Priya Nair", context.AddedEscalation!.EscalatedBy);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithNobodySignedIn_IsUnauthorizedAndSavesNothing()
+    {
+        var context = new TicketCommandTestContext();
+        context.NobodySignedIn();
+        var ticket = context.ExistingTicket(new TicketBuilder().Build());
+
+        await Assert.ThrowsAsync<UnauthorizedException>(
+            () => context.EscalateTicket.HandleAsync(ticket.Id, Request(), CancellationToken.None));
+
+        Assert.Null(context.AddedEscalation);
+        context.VerifySaved(Times.Never());
     }
 
     [Fact]

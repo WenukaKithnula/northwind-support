@@ -22,16 +22,22 @@ public sealed class EscalateTicketCommandHandler(
     ICategoryRepository categories,
     TicketTriage triage,
     SlaPolicy slaPolicy,
+    ICurrentUser currentUser,
     IUnitOfWork unitOfWork,
     IClock clock,
     GetTicketQueryHandler getTicket,
     GetTicketEscalationsQueryHandler getEscalations,
     ILogger<EscalateTicketCommandHandler> logger)
 {
+    /// <exception cref="UnauthorizedException">Nobody is signed in.</exception>
     /// <exception cref="NotFoundException">The ticket does not exist.</exception>
     /// <exception cref="BusinessRuleViolationException">The ticket is Critical, Resolved or Closed.</exception>
     public async Task<EscalationResultDto> HandleAsync(int id, EscalateTicketRequest request, CancellationToken ct)
     {
+        // Who escalated is whoever the token says, never what the caller wrote in the body.
+        var escalatedBy = currentUser.FullName
+            ?? throw new UnauthorizedException("You must be signed in to escalate a ticket.");
+
         var ticket = await tickets.GetByIdAsync(id, ct) ?? throw new NotFoundException("Ticket", id);
 
         var customer = await customers.GetByIdAsync(ticket.CustomerId, ct)
@@ -44,7 +50,7 @@ public sealed class EscalateTicketCommandHandler(
 
         // The ticket refuses (Critical, Resolved, Closed) before anything is written.
         var escalation = ticket.Escalate(
-            request.Reason, request.EscalatedBy, slaPolicy, customer.Tier, owner.AgentId, clock.UtcNow);
+            request.Reason, escalatedBy, slaPolicy, customer.Tier, owner.AgentId, clock.UtcNow);
 
         // The ticket and its history row go to the database in this one save.
         await tickets.AddEscalationAsync(escalation, ct);
