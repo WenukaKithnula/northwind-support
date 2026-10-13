@@ -97,6 +97,28 @@ shows), the SQL in the API console, and each screen in a browser.
 
 **More:** [docs/escalation.md](docs/escalation.md).
 
+## Signing in (Task 3)
+
+**How it works:** `POST /api/auth/login` checks the email and password and returns a JWT (HMAC-SHA256,
+60 minutes). Passwords are stored as ASP.NET Identity PBKDF2 hashes in a nullable `Agents.PasswordHash`
+column. An unknown email, a wrong password, an inactive agent and an agent with no password all get the
+same `401` and the same message, so the endpoint does not reveal which emails exist.
+
+**Protection:** a fallback authorization policy closes every endpoint, so a new one is protected by
+default. Only login is `[AllowAnonymous]`. The signing key comes from `Jwt__SigningKey` and the app will
+not start if it is missing or under 32 bytes. Escalations are recorded against the agent in the token;
+the body no longer carries a name.
+
+**Web:** a login page, a route guard that returns the agent to the page they wanted, the token in
+`sessionStorage` and sent as a Bearer header, and a `401` ends the session. `sessionStorage` is readable
+by any script on the page, so a cross-site scripting bug would expose the token; `localStorage` is no
+safer, and an `httpOnly` cookie needs server support and CSRF protection.
+
+**Development login:** `alex.turner@northwind-support.example` / `LocalDevOnly-Password-1` (every active
+seeded agent has it; Yuki is inactive and cannot sign in). It is only set by the development seed.
+
+**More:** [docs/authentication.md](docs/authentication.md).
+
 ## Design decisions
 
 **The defect**
@@ -128,6 +150,19 @@ shows), the SQL in the API console, and each screen in a browser.
   leaving it in `appsettings.Development.json`, which the image must not contain.
 - **Chosen:** the SLA filter in SQL, with only the window lengths worked out in C# and passed in as
   constants. **Rejected:** date arithmetic in SQL, which differs between SQL Server and SQLite.
+
+**Authentication**
+
+- **Chosen:** a password hash column on `Agents`. **Rejected:** a separate users table, because every user
+  is an agent and there are no roles, so it would hold the same person twice.
+- **Chosen:** one fallback policy, with login the only anonymous endpoint. **Rejected:** `[Authorize]` on
+  each controller, where a forgotten attribute leaves an endpoint open.
+- **Chosen:** one message for every refused sign-in. **Rejected:** saying "no such user" or "account
+  inactive", which tells an attacker which emails exist.
+- **Chosen:** a 60 minute token and no refresh token. **Rejected:** a refresh flow, which is more than this
+  app needs; the cost is that a deactivated agent's token works until it expires.
+- **Chosen:** the actor taken from the token. **Rejected:** keeping `escalatedBy` in the body, which lets
+  anyone record an action as someone else.
 
 ---
 

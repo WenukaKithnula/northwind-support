@@ -67,7 +67,36 @@ Details: `docs/escalation.md`.
 
 ## Task 3: signing in
 
-*(to be written)*
+I began with what the brief asked to be true, not with the library: a request without a valid token must
+fail everywhere, and the person recorded on an escalation must be the person who was signed in. Then I
+worked backwards to the smallest design that makes both hard to get wrong.
+
+**Where the credential lives.** Every user is an agent and there are no roles, so a password hash on
+`Agents` is enough. A users table would have meant keeping the same person in two places. I used ASP.NET
+Identity's hasher rather than writing anything of my own, behind a small interface so the application layer
+does not know about it.
+
+**Closing everything.** The risky mistake is forgetting to protect one endpoint, so I did not protect
+endpoints one by one. A fallback authorization policy closes all of them and login opts out. I called all
+eleven without a token to check, and a test does the same through the real pipeline.
+
+**Login.** Four things can go wrong (no such email, wrong password, inactive, no password) and they get one
+answer. The password is checked even when there is no agent, so the response time says nothing either. I
+wrote the tests for those four cases before the handler.
+
+**The token.** A JWT with the agent's id, name and email, an hour long, signed with a key from
+configuration. The app refuses to start without a key of at least 32 bytes, because a weak key fails
+silently: logins work and anyone can forge tokens. The start-up check makes the mistake loud.
+
+**Who escalated.** I removed `escalatedBy` from the request and read the name from the token. The form no
+longer asks, and it says who it will be recorded as.
+
+**The web app.** A session store in `sessionStorage` that clears itself at expiry, a guard that remembers
+the page the agent wanted, and a client that clears the session on a 401. Signing out only clears the
+session and lets the guard do the redirect, instead of navigating from two places. I checked each flow in
+the browser, including a token I had edited by hand.
+
+Details: `docs/authentication.md`.
 
 ## Task 4: Docker
 
