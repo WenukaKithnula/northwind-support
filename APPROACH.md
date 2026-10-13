@@ -37,7 +37,33 @@ Details: `docs/filtering.md`.
 
 ## Task 2: triage and escalation
 
-*(to be written)*
+The brief said the challenge was where the rules go, so I started there. Each rule became a small class
+with no database or web code in it: the SLA windows (`SlaPolicy`), the priority rule, the choice of owner,
+and `Ticket.Escalate`. One service, `TicketTriage`, brings them together, so raising a ticket and
+escalating one use exactly the same logic. That let me write and test the rules, with the brief's worked
+examples as acceptance tests, before there was any endpoint or screen.
+
+After that I went in this order, committing each step: the rules and their tests, the history table and its
+migration, the create and escalate endpoints, the SLA filter in SQL, then the screens, then the write-up. I
+ran the real API and read the SQL it generated after each backend step, because the brief says it will be
+read.
+
+The places where the brief left room, I decided and wrote down: how the at-risk window is worked out
+(from the policy for the priority and tier, because due date minus created date is wrong once a ticket has
+been escalated), who keeps a ticket that is already at an agent's limit (its own agent, because an escalation
+adds no load), how equal agents are split (the lowest id), and what happens when nobody is eligible (the
+ticket is created unassigned with a reason, and the same after an escalation). Each is in the README under
+"Design decisions".
+
+The SLA filter was the one place the rules had to exist twice, once in C# for the status a row shows and once
+in SQL for the filter. So the main test builds about 580 tickets either side of every boundary and checks the
+filter selects exactly the rows that show each status. I checked it on the real SQL Server as well as SQLite,
+because the two can translate a query differently.
+
+For the screens, the rules went into plain functions (`escalationRules.ts`) so that no component decides
+anything, and I used the browser to check each flow against the running API before writing it up.
+
+Details: `docs/escalation.md`.
 
 ## Task 3: signing in
 

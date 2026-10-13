@@ -70,6 +70,65 @@ with direct `COUNT(*)` queries.
 
 **More:** [docs/filtering.md](docs/filtering.md).
 
+## Escalation and triage (Task 2)
+
+**Rules as I understood them:**
+
+- **Priority and due date:** the requested priority (Medium if none), Critical for a
+  `ForcesCriticalPriority` category. The windows are 4, 8, 24 and 72 hours, halved for Premium with a
+  1 hour floor, and come from the `Sla` section of `appsettings.json`. No category name is in the code.
+- **Owner:** active, strictly below their limit, specialised where the category needs it; fewest open
+  tickets, then lowest id. If nobody fits, the ticket is created unassigned (`201`) with a reason.
+- **Escalation:** one level up with a reason (5 to 500 characters), due date restarted from now, owner
+  checked again, history row written. Critical, Resolved and Closed are refused with a `409` that says
+  which. SLA status is derived, never stored, and 25% or less of the window left is At risk.
+
+**Where:** small domain classes (`SlaPolicy`, `PriorityResolver`, `AgentSelector`, `Ticket.Escalate`,
+`SlaEvaluator`) shared through `TicketTriage`, so create and escalate use the same rules.
+
+**Database:** one new table, `TicketEscalations`, from the `AddTicketEscalations` migration. Its index on
+`(TicketId, EscalatedAtUtc DESC)` serves "one ticket's history, newest first" and doubles as the ticket
+foreign key index; the two agent indexes EF added back the `Restrict` foreign key checks. The SLA filter
+(`?slaStatus=`) runs in SQL.
+
+**Checked:** the brief's worked examples in unit tests and against the running API, boundary tests with
+a fixed clock, SQLite for the history and the SLA filter (which must agree with the status each row
+shows), the SQL in the API console, and each screen in a browser.
+
+**More:** [docs/escalation.md](docs/escalation.md).
+
+## Design decisions
+
+**The defect**
+
+- **Chosen:** apply every filter at once and debounce only the search text. **Rejected:** adding every
+  filter to the existing dependency array, because the debounce wrapped the whole effect and the
+  dropdowns would wait, and adding `load` as lint suggested, which would run after every render; and a
+  remount key or a forced reload, which hide the cause.
+
+**Filtering**
+
+- **Chosen:** one `ApplyFilters` with a `Where` per filter sent. **Rejected:** filtering in C#, which
+  breaks the count and the paging, and a specification class, which is more than a few filters need.
+- **Chosen:** tests on in-memory SQLite, because mocks do not prove the filters become real SQL.
+
+**Escalation and triage**
+
+- **Chosen:** small domain classes shared through `TicketTriage`. **Rejected:** the rules in the
+  handlers, where create and escalate would each hold a copy.
+- **Chosen:** the at-risk window from the policy for the priority and tier. **Rejected:** due date minus
+  created date, which is wrong after an escalation, and a stored window column, which needs a migration
+  the configuration makes unnecessary.
+- **Chosen:** the escalated ticket is not counted against its own agent's limit. **Rejected:** counting
+  it, because an agent at their limit would lose every ticket they hold.
+- **Chosen:** ties go to the lowest agent id. **Rejected:** random, which is not repeatable.
+- **Chosen:** history foreign keys use `Restrict`. **Rejected:** cascade, because an audit trail should not
+  vanish by accident.
+- **Chosen:** the `Sla` section in `appsettings.json`, so it reaches the Docker image too. **Rejected:**
+  leaving it in `appsettings.Development.json`, which the image must not contain.
+- **Chosen:** the SLA filter in SQL, with only the window lengths worked out in C# and passed in as
+  constants. **Rejected:** date arithmetic in SQL, which differs between SQL Server and SQLite.
+
 ---
 
 ## Quick start
@@ -118,10 +177,12 @@ Both pass on a clean checkout and neither needs a database.
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. Filters are applied in the database. |
+| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `slaStatus`, `sortBy`, `sortDirection`. Filters are applied in the database. |
 | `GET /api/tickets/{id}` | One ticket |
-| `POST /api/tickets` | Create a ticket |
+| `POST /api/tickets` | Create a ticket. It is triaged: priority, due date and owner are chosen, and a `triage` object says why. `201` even when no agent is eligible |
 | `PATCH /api/tickets/{id}/status` · `/assignment` | Change status / assignee |
+| `POST /api/tickets/{id}/escalate` | Raise the priority one level with a `reason` and `escalatedBy`. `400` bad input, `404` unknown ticket, `409` Critical, Resolved or Closed |
+| `GET /api/tickets/{id}/escalations` | The escalation history, newest first |
 | `GET /api/customers` · `/api/agents` · `/api/categories` | Reference data |
 
 Errors are `ProblemDetails`: `400` validation, `404` not found, `409` conflict or business rule.
