@@ -22,7 +22,18 @@ the request that is sent, and checked that they fail on the original hook (9 of 
 
 Details: `docs/defect-117.md`.
 
-**The filtering.** *(to be written when the filtering is done)*
+**The filtering.** The API read the filter values and ignored them: `priority=High` still returned all 40
+tickets. I looked at where the list query is built and added one step, `ApplyFilters`, between building the
+query and counting it, with one `Where` per filter that was supplied. Putting it before the count is what
+makes `totalCount` and the pager right, and since each filter is one `if`, the SLA filter in Task 2 is one
+more.
+
+I wrote the tests first and ran them on a real in-memory SQLite database instead of a mock, because a mock
+would pass whatever the query looked like. Sixteen of the twenty failed before the change. Then I checked
+the generated SQL on the real SQL Server, to see the `WHERE` in both the count and the paged query, and
+compared the API's counts with direct counts in the database.
+
+Details: `docs/filtering.md`.
 
 ## Task 2: triage and escalation
 

@@ -57,6 +57,19 @@ the original hook (`npm test`).
 
 **More:** [docs/defect-117.md](docs/defect-117.md).
 
+## Filtering (Task 1)
+
+**Where:** `TicketQueries.ApplyFilters`. Each filter that is sent adds one `Where` before the count and the
+paging, so `totalCount` and the pager match the filtered list. Nothing is filtered in C#.
+
+**Checked:** `TicketQueriesFilterTests` run on in-memory SQLite, so the filters have to become SQL (16 of the
+20 tests fail on the old query). I also read the SQL the API logs on SQL Server, and compared the API counts
+with direct `COUNT(*)` queries.
+
+**Next filter:** add the field to `TicketQuery` and one more `if` in `ApplyFilters`.
+
+**More:** [docs/filtering.md](docs/filtering.md).
+
 ---
 
 ## Quick start
@@ -105,7 +118,7 @@ Both pass on a clean checkout and neither needs a database.
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. **Filters are accepted but not applied yet** (Task 1). |
+| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. Filters are applied in the database. |
 | `GET /api/tickets/{id}` | One ticket |
 | `POST /api/tickets` | Create a ticket |
 | `PATCH /api/tickets/{id}/status` · `/assignment` | Change status / assignee |
