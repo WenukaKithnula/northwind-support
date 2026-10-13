@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { formatDateTime } from '../../../lib/format';
 import type { TicketListItem } from '../../../types/api';
-import { SlaCell } from './SlaCell';
+import { SlaIndicator } from './SlaIndicator';
 import { PriorityBadge, StatusBadge } from './TicketBadges';
 
 interface TicketTableProps {
@@ -45,7 +45,7 @@ export function TicketTable({ tickets }: TicketTableProps) {
             </td>
             <td>{ticket.assignedAgent?.fullName ?? 'Unassigned'}</td>
             <td>
-              <SlaCell dueAtUtc={ticket.dueAtUtc} slaStatus={ticket.slaStatus} />
+              <SlaIndicator status={ticket.slaStatus} dueAtUtc={ticket.dueAtUtc} />
             </td>
             <td>{formatDateTime(ticket.createdAtUtc)}</td>
           </tr>

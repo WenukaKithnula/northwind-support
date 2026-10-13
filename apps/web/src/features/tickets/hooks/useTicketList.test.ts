@@ -48,6 +48,8 @@ describe('useTicketList', () => {
       ['customer', { customerId: 2 }],
       ['assigned agent', { assignedAgentId: 4 }],
       ['unassigned only', { unassignedOnly: true }],
+      // Added in Task 2 with no change to the hook: any filter in the applied set is requested at once.
+      ['SLA status', { slaStatus: 'AtRisk' }],
       ['sort order', { sortBy: 'dueAtUtc', sortDirection: 'asc' }],
     ];
 

@@ -79,6 +79,44 @@ export interface TicketDetail {
   dueAtUtc: string | null;
   resolvedAtUtc: string | null;
   slaStatus: SlaStatus;
+  /** How priority, due date and owner were decided. Only the response to creating a ticket has it. */
+  triage?: TriageResult;
+}
+
+/** What the system decided when a ticket was raised, and in words why. */
+export interface TriageResult {
+  appliedPriority: TicketPriority;
+  priorityReason: string;
+  slaWindowHours: number;
+  slaReason: string;
+  assignmentReason: string;
+}
+
+/** One entry in a ticket's escalation history. */
+export interface EscalationEntry {
+  id: number;
+  ticketId: number;
+  fromPriority: TicketPriority;
+  toPriority: TicketPriority;
+  fromAgent: AgentSummary | null;
+  toAgent: AgentSummary | null;
+  fromDueAtUtc: string | null;
+  toDueAtUtc: string | null;
+  reason: string;
+  escalatedBy: string;
+  escalatedAtUtc: string;
+}
+
+/** The response to escalating a ticket: the ticket as it is now, and the entry just written. */
+export interface EscalationResult {
+  ticket: TicketDetail;
+  escalation: EscalationEntry;
+}
+
+/** Body of an escalation. */
+export interface EscalatePayload {
+  reason: string;
+  escalatedBy: string;
 }
 
 /** Everything the ticket list screen can narrow the results by. */
@@ -90,6 +128,7 @@ export interface TicketFilters {
   customerId?: number;
   assignedAgentId?: number;
   unassignedOnly?: boolean;
+  slaStatus?: SlaStatus;
   page: number;
   pageSize: number;
   sortBy: TicketSortField;
