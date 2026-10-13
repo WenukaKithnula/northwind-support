@@ -175,7 +175,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy s
     /// Narrows the list to what the query asks for. Each filter that was supplied is one more
     /// <c>Where</c>, so they combine with AND, and a new filter is one more step here.
     /// </summary>
-    private static IQueryable<TicketWithLabels> ApplyFilters(IQueryable<TicketWithLabels> source, TicketQuery query)
+    private IQueryable<TicketWithLabels> ApplyFilters(IQueryable<TicketWithLabels> source, TicketQuery query)
     {
         if (query.Status is { } status)
         {
@@ -205,6 +205,11 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy s
         if (query.UnassignedOnly)
         {
             source = source.Where(x => x.Ticket.AssignedAgentId == null);
+        }
+
+        if (query.SlaStatus is { } slaStatus)
+        {
+            source = source.Where(SlaStatusFilter.For(slaStatus, clock.UtcNow, slaPolicy));
         }
 
         var search = query.Search?.Trim();
