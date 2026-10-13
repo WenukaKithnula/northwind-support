@@ -14,7 +14,7 @@ namespace SupportDesk.Infrastructure.Queries;
 /// Ticket reads. Projected in the database and never tracked. Aggregates hold only each
 /// other's ids, so the customer, category and agent labels are joined in here, on the read side.
 /// </summary>
-public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQueries
+public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy slaPolicy) : ITicketQueries
 {
     /// <remarks>
     /// Filters, then counts, then sorts and pages, all in the database. The count therefore
@@ -27,6 +27,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
         var totalCount = await tickets.CountAsync(ct);
 
         var now = clock.UtcNow;
+        var policy = slaPolicy;
 
         var items = await ApplySort(tickets, query)
             .Skip((query.Page - 1) * query.PageSize)
@@ -45,7 +46,8 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaStatusOf(
+                    x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now, x.Ticket.Priority, x.Customer.Tier, policy)
             })
             .ToListAsync(ct);
 
@@ -55,6 +57,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
     public Task<TicketDetailDto?> GetDetailAsync(int id, CancellationToken ct)
     {
         var now = clock.UtcNow;
+        var policy = slaPolicy;
 
         return TicketsWithLabels()
             .Where(x => x.Ticket.Id == id)
@@ -74,7 +77,8 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaStatusOf(
+                    x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now, x.Ticket.Priority, x.Customer.Tier, policy)
             })
             .FirstOrDefaultAsync(ct);
     }
@@ -82,6 +86,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
     public async Task<IReadOnlyList<TicketListItemDto>> GetForCustomerAsync(int customerId, CancellationToken ct)
     {
         var now = clock.UtcNow;
+        var policy = slaPolicy;
 
         return await TicketsWithLabels()
             .Where(x => x.Ticket.CustomerId == customerId)
@@ -101,10 +106,28 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaStatusOf(
+                    x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now, x.Ticket.Priority, x.Customer.Tier, policy)
             })
             .ToListAsync(ct);
     }
+
+    /// <summary>
+    /// The SLA status shown on a row: derived from the dates, "now" and the at-risk span for the
+    /// ticket's priority and the customer's tier, so the list and the detail never disagree.
+    /// </summary>
+    /// <remarks>
+    /// Static, with the policy passed in: a client projection that reached for an instance member
+    /// would make EF Core hold on to this whole object.
+    /// </remarks>
+    private static SlaStatus SlaStatusOf(
+        DateTime? dueAtUtc,
+        DateTime? resolvedAtUtc,
+        DateTime nowUtc,
+        TicketPriority priority,
+        CustomerTier tier,
+        SlaPolicy policy) =>
+        SlaEvaluator.Evaluate(dueAtUtc, resolvedAtUtc, nowUtc, policy.AtRiskSpanFor(priority, tier));
 
     /// <summary>
     /// Every ticket with the rows that label it. Filter and sort this, then project.

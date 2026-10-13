@@ -31,6 +31,9 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
 
+        // Built here, at startup, so bad SLA configuration fails the application straight away.
+        services.AddSingleton(SlaPolicyFactory.Create(configuration));
+
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<IAgentRepository, AgentRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();

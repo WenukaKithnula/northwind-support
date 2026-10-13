@@ -285,7 +285,7 @@ public sealed class TicketQueriesFilterTests : IDisposable
     }
 
     private Task<PagedResult<TicketListItemDto>> Query(TicketQuery query) =>
-        new TicketQueries(_db, new FixedClock()).GetPagedAsync(query.Normalized(), CancellationToken.None);
+        new TicketQueries(_db, new FixedClock(), TestSlaPolicy.Default).GetPagedAsync(query.Normalized(), CancellationToken.None);
 
     private static string[] References(PagedResult<TicketListItemDto> result) =>
         result.Items.Select(ticket => ticket.Reference).ToArray();
