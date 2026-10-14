@@ -127,8 +127,9 @@ The `409` is `Ticket TCK-0043 is already Critical and cannot be escalated furthe
 ticket gets the same status with its own message, for example `Ticket TCK-0025 is Resolved and cannot be
 escalated.`
 
-The brief says `escalatedBy` comes from the request body until Task 3. It does, and Task 3 replaces it
-with the signed-in agent.
+The brief says `escalatedBy` comes from the request body until Task 3. In this task it does, as the screenshots show.
+Task 3 then removed it: the request is now just `{ "reason": "..." }` and the agent comes from the token (see
+[authentication.md](authentication.md)).
 
 ## History
 
@@ -220,6 +221,5 @@ agent is ever changed, so I kept them.
 - Open-ticket counts are read and then used, so two tickets raised at the same moment could both go to
   an agent who has room for only one.
 - Changing the `Sla` section or a customer's tier changes the status of tickets that already exist.
-- Until Task 3, who escalated is a text box the agent fills in, so it can be any name.
-- A missing `escalatedBy` gets ASP.NET's own validation response, which has a slightly different shape
-  from the one the validator produces. The existing create endpoint does the same for missing fields.
+- When this task was written, who escalated was a text box the agent filled in, so it could be any name. Task 3
+  fixed that by taking the name from the token.
