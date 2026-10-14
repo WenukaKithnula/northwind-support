@@ -24,6 +24,9 @@ public static class TriageReasons
             : $"Priority {decision.Priority} as requested";
     }
 
+    // Only the wording depends on this: an exact half reads as "halved", anything else as a percentage.
+    private const double HalvedWindow = 0.5;
+
     public static string SlaWindow(SlaPolicy policy, TicketPriority priority, CustomerTier tier)
     {
         var baseHours = policy.BaseWindowFor(priority).TotalHours;
@@ -37,7 +40,7 @@ public static class TriageReasons
 
         if (window <= baseHours * policy.PremiumCustomerMultiplier)
         {
-            return policy.PremiumCustomerMultiplier == 0.5
+            return policy.PremiumCustomerMultiplier == HalvedWindow
                 ? $"{text}, halved for a Premium customer"
                 : $"{text}, reduced to {Number(policy.PremiumCustomerMultiplier * 100)}% for a Premium customer";
         }
