@@ -4,11 +4,6 @@
 
 ## Defects fixed
 
-**DEFECT-104 —**
-- Root cause:
-- Fix:
-- How to verify:
-
 **DEFECT-117 —**
 - Root cause:
 - Fix:
