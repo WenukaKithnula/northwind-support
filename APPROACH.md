@@ -100,7 +100,32 @@ Details: `docs/authentication.md`.
 
 ## Task 4: Docker
 
-*(to be written)*
+The brief gives the checks up front (a clean `up`, a cached restore, the size, `whoami`), so I worked
+backwards from them and treated each as something I could prove with a command.
+
+**The Dockerfile.** Restore is the slow, rarely-changing step and source is the fast, always-changing one, so
+the Dockerfile copies the project files and the three shared build files first and restores, and only then
+copies the source. I proved it instead of trusting it: I changed one `.cs` line and read the build log, where
+the restore step said `CACHED`. The runtime stage is the ASP.NET image running as its built-in `app` user.
+
+**Configuration.** Nothing goes into the image. The risky part is not the secrets I know about but the ones
+that arrive by accident, such as the Development settings file that holds a SQL password and a signing
+key, so `.dockerignore` keeps that file out and I checked `docker history` and the files in the image.
+
+**Production, not Development.** If the container ran as Development it would pass every check and be wrong:
+it would have Swagger and a development key. Running it as Production turned out to be the better test,
+because the API refuses to start unless the key and connection string are supplied, which shows the image
+really holds no configuration. That meant migrate-and-seed could not depend on the environment being
+Development, so it got its own flag.
+
+**The database.** Compose waits for SQL Server to be healthy before it starts the API, instead of the API
+retrying in a loop, so a real outage is not hidden. For a real deployment I would run migrations as a
+separate step, for the reasons in the README.
+
+**Health.** `/health` reports database reachability, and I made it the only anonymous endpoint besides
+login, opened where it is mapped so the fallback policy still closes everything else.
+
+Details: `docs/docker.md`.
 
 ## How I used AI
 

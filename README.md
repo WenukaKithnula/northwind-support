@@ -119,6 +119,36 @@ seeded agent has it; Yuki is inactive and cannot sign in). It is only set by the
 
 **More:** [docs/authentication.md](docs/authentication.md).
 
+## Docker (Task 4)
+
+```bash
+docker compose up --build        # SQL Server, then the API on http://localhost:5080
+```
+
+**Image:** two stages, the .NET 10 SDK to build and the ASP.NET runtime to run. The project files and the
+shared build files are restored before the source is copied, so a code change keeps the cached restore
+layer. It runs as the image's unprivileged `app` user on plain HTTP 8080, with no certificate, and holds no
+configuration: the connection string, the signing key and the environment name come from environment
+variables (listed in `.env.example`). The container runs as `Production`, so there is no Swagger.
+
+**Compose:** the `api` service reaches SQL Server as `sqlserver` and starts only when it is healthy. On an
+empty volume it applies migrations and seeds the demo data (`Database__MigrateAndSeed=true`). `GET /health`
+is open and reports whether the database can be reached.
+
+**Migrations in a real deployment:** not at start-up. They would run once, as their own release step (an
+EF migration bundle), because several instances starting together would race, the API's database login
+should not be allowed to change the schema, and a failed migration should stop the release instead of
+leaving instances that never become healthy.
+
+**Web app against the container:** `VITE_API_PROXY_TARGET=http://localhost:5080 npm run web`.
+
+**Checked:** `docker compose down -v && up --build` ended with a healthy `/health` and 40 seeded tickets
+at `/api/tickets` (with a token); a one-line `.cs` change kept `dotnet restore` as `CACHED`; the image is
+455 MB (the runtime base is 340 MB, the SDK image 1.3 GB); `whoami` prints `app`; no secret appears in
+`docker history`.
+
+**More:** [docs/docker.md](docs/docker.md).
+
 ## Design decisions
 
 **The defect**
@@ -164,6 +194,16 @@ seeded agent has it; Yuki is inactive and cannot sign in). It is only set by the
 - **Chosen:** the actor taken from the token. **Rejected:** keeping `escalatedBy` in the body, which lets
   anyone record an action as someone else.
 
+**Docker**
+
+- **Chosen:** the container runs as `Production`, with the key and connection string supplied from outside.
+  **Rejected:** running it as Development, which would ship Swagger and a development key in the container.
+- **Chosen:** migrate and seed behind their own flag (`Database__MigrateAndSeed`). **Rejected:** tying them
+  to the Development environment, which would force the container to run as Development.
+- **Chosen:** `depends_on` with `condition: service_healthy`. **Rejected:** a retry loop or wait script in the
+  API, which hides a real outage.
+- **Chosen:** publish on `127.0.0.1` only. **Rejected:** all interfaces, because the compose key and password are local fixtures.
+
 ---
 
 ## Quick start
@@ -184,8 +224,8 @@ npm run web                   # terminal 2: React dev server
 | API | https://localhost:7043 (also http://localhost:5043) |
 | Swagger | https://localhost:7043/swagger |
 
-In Development the API applies migrations and seeds demo data on startup. **Never commit real
-credentials.**
+In Development the API applies migrations and seeds demo data on startup. To run the API in Docker
+instead, see [Docker](#docker-task-4). **Never commit real credentials.**
 
 **Visual Studio 2026:** run `npm run db:up`, open `SupportDesk.sln`, set
 **SupportDesk.Presentation** as the startup project, and press F5 on the **https** profile.
