@@ -129,4 +129,18 @@ Details: `docs/docker.md`.
 
 ## How I used AI
 
-*(to be written at the end: tools, what worked, what I changed or rejected, and what I verified)*
+I used Claude Code throughout, and the way I used it changed what I trusted. I started each task by asking for a plan
+and reading it against the brief, not by asking for code: where the design came from, which rules go in which class,
+what the checklist in the brief would look at. That made me argue with the plan before any code existed, and a few
+decisions (the at-risk window, ties going to the lowest id, the escalated ticket not counting against its own agent)
+came out of that argument and are written down in the README.
+
+When I was blocked, I asked it to explain the existing code instead of to change it, then made the change myself or
+reviewed it line by line. For the commands (builds, tests, the live API, Docker) I let it run them, because the point
+was the output, which I could then show.
+
+The rule I held it to was that nothing counts as done until I can show it: a test that failed first, a response from
+the running API, a screen in the browser, a line of the build log. Several times that caught a mistake in what it had
+written, including a claim in my own write-up that turned out to be wrong when I checked it against the code.
+
+The details (what I accepted, what I rejected, the bugs and how they were found) are in the README under *AI usage*.
